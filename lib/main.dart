@@ -61,6 +61,7 @@ class _MapViewState extends State<MapView> {
   Position? currentPosition;
   late GoogleMapController mapController;
   late StreamSubscription<Position> positionStream;
+  late Timer _timer; // 定期実行用のタイマー
   bool isFollowing = true; // 追従モードの状態（デフォルトON）
   bool isUserInteracting = false; // ユーザーが手動で操作中かどうかを判定
 
@@ -79,43 +80,10 @@ class _MapViewState extends State<MapView> {
   void initState() {
     super.initState();
 
-    // **マーカーのセットを更新**
-    void _updateMarkers() {
-      _markers.clear(); // 一旦クリア
-      if (_isMarkerVisible) {
-        _markers.add(
-          Marker(
-            markerId: MarkerId("custom_marker"),
-            position: _markerPosition,
-            infoWindow: InfoWindow(title: "指定の地点"),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed,
-            ),
-          ),
-        );
-      }
-    }
-
-    // **マーカーの表示状態を更新**
-    void _updateMarkerVisibility() {
-      if (currentPosition == null) return;
-
-      double distance = Geolocator.distanceBetween(
-        currentPosition!.latitude,
-        currentPosition!.longitude,
-        _markerPosition.latitude,
-        _markerPosition.longitude,
-      );
-
-      bool shouldShowMarker = distance <= 100.0; // 100m以内なら表示
-
-      if (shouldShowMarker != _isMarkerVisible) {
-        setState(() {
-          _isMarkerVisible = shouldShowMarker;
-          _updateMarkers();
-        });
-      }
-    }
+    // **1秒ごとに現在時刻を取得 & 出力**
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _printCurrentTime();
+    });
 
     //現在位置を更新し続ける
     positionStream = Geolocator.getPositionStream(
@@ -125,11 +93,12 @@ class _MapViewState extends State<MapView> {
         setState(() {
           currentPosition = position;
           _updateCircle(); //現在位置が更新されたら円も更新
-          _updateMarkerVisibility(); // マーカーの表示状態を更新
         });
         if (isFollowing) {
           moveCameraToCurrentPosition(); // 追従モードならカメラを移動
         }
+        _getVisibleRegion(); // 位置更新時に四隅の座標取得
+        _updateMarkerVisibility(); //位置情報の更新時にマーカーの表示を判定
       }
     });
   }
@@ -162,6 +131,60 @@ class _MapViewState extends State<MapView> {
     }
   }
 
+  /// **現在時刻を取得してデバッグ出力**
+  void _printCurrentTime() {
+    String formattedTime = DateTime.now().toLocal().toString();
+    print("現在時刻: $formattedTime");
+  }
+
+  // **マーカーの表示状態を更新**
+  Future<void> _updateMarkerVisibility() async {
+    if (currentPosition == null) return;
+
+    LatLngBounds visibleRegion = await mapController.getVisibleRegion();
+    bool shouldShowMarker = visibleRegion.contains(_markerPosition);
+
+    if (shouldShowMarker != _isMarkerVisible) {
+      setState(() {
+        _isMarkerVisible = shouldShowMarker;
+        _updateMarkers();
+      });
+    }
+  }
+
+  // **マーカーのセットを更新**
+  void _updateMarkers() {
+    _markers.clear(); // 一旦クリア
+    if (_isMarkerVisible) {
+      _markers.add(
+        Marker(
+          markerId: MarkerId("custom_marker"),
+          position: _markerPosition,
+          infoWindow: InfoWindow(title: "指定の地点"),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        ),
+      );
+    }
+  }
+
+  /// Googleマップの表示範囲の四隅の座標を取得（カメラ移動後・ズーム変更後）
+  Future<void> _getVisibleRegion() async {
+    if (mapController == null) return;
+
+    LatLngBounds visibleRegion = await mapController.getVisibleRegion();
+
+    LatLng northeast = visibleRegion.northeast; // 右上
+    LatLng southwest = visibleRegion.southwest; // 左下
+    LatLng northwest = LatLng(northeast.latitude, southwest.longitude); // 左上
+    LatLng southeast = LatLng(southwest.latitude, northeast.longitude); // 右下
+
+    print("四隅の座標:");
+    print("左上: ${northwest.latitude}, ${northwest.longitude}");
+    print("右上: ${northeast.latitude}, ${northeast.longitude}");
+    print("左下: ${southwest.latitude}, ${southwest.longitude}");
+    print("右下: ${southeast.latitude}, ${southeast.longitude}");
+  }
+
   // 追従モードの切り替え
   void toggleFollowMode() {
     setState(() {
@@ -192,8 +215,11 @@ class _MapViewState extends State<MapView> {
               onMapCreated: (GoogleMapController controller) {
                 mapController = controller;
                 moveCameraToCurrentPosition(); // 初期ロード時に現在地へ移動
+                _updateMarkerVisibility(); // 初回表示時にマーカーの判定
               },
               onCameraIdle: () {
+                _getVisibleRegion(); // カメラが停止したら四隅の座標を取得
+                _updateMarkerVisibility(); // カメラ移動後にマーカーの表示を更新
                 // カメラが手動操作されたら追従をOFFにする
                 if (isUserInteracting) {
                   setState(() {
@@ -235,6 +261,7 @@ class _MapViewState extends State<MapView> {
   @override
   void dispose() {
     positionStream.cancel(); // ストリームを停止
+    _timer.cancel(); // **タイマーを停止**
     super.dispose();
   }
 }
