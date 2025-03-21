@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geek_hackathon1_21/constants.dart';
+import 'package:geek_hackathon1_21/env.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +13,7 @@ Future<void> main() async {
   await Supabase.initialize(
     // TODO: ここにSupabaseのURLとAnon Keyを入力
     url: 'https://ifuswhoatzauxusfgtyo.supabase.co',
-    anonKey: 'SUPABASE_ANON_KEY',
+    anonKey: Env.supabaseAnonKey,
   );
 
   runApp(MyApp());
@@ -100,12 +101,12 @@ class _MapViewState extends State<MapView> {
       if (position != null) {
         setState(() {
           currentPosition = position;
-          _updateCircle(); //現在位置が更新されたら円も更新
+          //_updateCircle(); //現在位置が更新されたら円も更新
         });
         if (isFollowing) {
           moveCameraToCurrentPosition(); // 追従モードならカメラを移動
         }
-        _getVisibleRegion(); // 位置更新時に四隅の座標取得
+        //_getVisibleRegion(); // 位置更新時に四隅の座標取得
         _updateMarkerVisibility(); //位置情報の更新時にマーカーの表示を判定
       }
     });
@@ -173,7 +174,7 @@ class _MapViewState extends State<MapView> {
   /// **現在時刻を取得してデバッグ出力**
   void _printCurrentTime() {
     String formattedTime = DateTime.now().toLocal().toString();
-    print("現在時刻: $formattedTime");
+    //print("現在時刻: $formattedTime");
   }
 
   // **マーカーの表示状態を更新**
@@ -226,6 +227,7 @@ class _MapViewState extends State<MapView> {
 
   // 追従モードの切り替え
   void toggleFollowMode() {
+    moveCameraToCurrentPosition;
     setState(() {
       isFollowing = !isFollowing;
     });
@@ -243,6 +245,14 @@ class _MapViewState extends State<MapView> {
         body: Stack(
           children: <Widget>[
             GoogleMap(
+              onTap: (LatLng position) {
+                // ← 追加！
+                setState(() {
+                  isFollowing = false; // Google Map をタップしたら追尾モードを解除
+                });
+                print("Google Map がタップされました！追尾モードOFF");
+              },
+
               initialCameraPosition: _initialLocation,
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
@@ -255,12 +265,12 @@ class _MapViewState extends State<MapView> {
                 mapController = controller;
                 getMarkersFromSupabase();
                 moveCameraToCurrentPosition(); // 初期ロード時に現在地へ移動
-                _updateMarkerVisibility(); // 初回表示時にマーカーの判定
+                //_updateMarkerVisibility(); // 初回表示時にマーカーの判定
               },
               onCameraIdle: () {
-                _getVisibleRegion(); // カメラが停止したら四隅の座標を取得
+                //_getVisibleRegion(); // カメラが停止したら四隅の座標を取得
                 getMarkersFromSupabase();
-                _updateMarkerVisibility(); // カメラ移動後にマーカーの表示を更新
+                //_updateMarkerVisibility(); // カメラ移動後にマーカーの表示を更新
                 // カメラが手動操作されたら追従をOFFにする
                 if (isUserInteracting) {
                   setState(() {
@@ -270,16 +280,17 @@ class _MapViewState extends State<MapView> {
                 isUserInteracting = false;
               },
             ),
+
             // 左下に「現在地」ボタンを配置
-            Positioned(
-              bottom: 20,
-              left: 20,
-              child: FloatingActionButton(
-                backgroundColor: Colors.white,
-                onPressed: moveCameraToCurrentPosition,
-                child: const Icon(Icons.my_location, color: Colors.blue),
-              ),
-            ),
+            //Positioned(
+            //  bottom: 20,
+            //  left: 20,
+            //  child: FloatingActionButton(
+            //    backgroundColor: Colors.white,
+            //    onPressed: moveCameraToCurrentPosition,
+            //    child: const Icon(Icons.my_location, color: Colors.blue),
+            //  ),
+            //),
             //右下に「追従モード切替ボタン」を配置
             Positioned(
               bottom: 20,
