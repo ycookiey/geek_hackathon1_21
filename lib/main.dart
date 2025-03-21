@@ -3,10 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geek_hackathon1_21/constants.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await requestPermission(); // ← ここで実行
+  await Supabase.initialize(
+    // TODO: ここにSupabaseのURLとAnon Keyを入力
+    url: 'https://ifuswhoatzauxusfgtyo.supabase.co',
+    anonKey: 'SUPABASE_ANON_KEY',
+  );
+
   runApp(MyApp());
 }
 
@@ -99,6 +107,37 @@ class _MapViewState extends State<MapView> {
         }
         _getVisibleRegion(); // 位置更新時に四隅の座標取得
         _updateMarkerVisibility(); //位置情報の更新時にマーカーの表示を判定
+      }
+    });
+  }
+
+  Future<void> getMarkersFromSupabase() async {
+    LatLngBounds bounds = await mapController.getVisibleRegion();
+    //double minLat = bounds.southwest.latitude;
+    double maxLat = bounds.northeast.latitude;
+    double minLng = bounds.southwest.longitude;
+    //double maxLng = bounds.northeast.longitude;
+
+    final response = await Supabase.instance.client
+        .from('intersection_location')
+        .select('lat, lon')
+        //.gte('lat', minLat)
+        .lte('lat', maxLat)
+        .gte('lon', minLng);
+    //.lte('lon', maxLng);
+
+    setState(() {
+      _markers.clear();
+      for (var item in response) {
+        _markers.add(
+          Marker(
+            markerId: MarkerId('${item['lat']},${item['lon']}'),
+            position: LatLng(item['lat'], item['lon']),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
+            ),
+          ),
+        );
       }
     });
   }
@@ -214,11 +253,13 @@ class _MapViewState extends State<MapView> {
               markers: _markers, // 追加したマーカーを表示
               onMapCreated: (GoogleMapController controller) {
                 mapController = controller;
+                getMarkersFromSupabase();
                 moveCameraToCurrentPosition(); // 初期ロード時に現在地へ移動
                 _updateMarkerVisibility(); // 初回表示時にマーカーの判定
               },
               onCameraIdle: () {
                 _getVisibleRegion(); // カメラが停止したら四隅の座標を取得
+                getMarkersFromSupabase();
                 _updateMarkerVisibility(); // カメラ移動後にマーカーの表示を更新
                 // カメラが手動操作されたら追従をOFFにする
                 if (isUserInteracting) {
