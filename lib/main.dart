@@ -6,10 +6,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geek_hackathon1_21/constants.dart';
 import 'package:geek_hackathon1_21/env.dart';
+import 'package:geek_hackathon1_21/services/location_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await requestPermission(); // ← ここで実行
+  await LocationService.requestPermission(); // LocationServiceのメソッドを使用
   await Supabase.initialize(
     // TODO: ここにSupabaseのURLとAnon Keyを入力
     url: 'https://ifuswhoatzauxusfgtyo.supabase.co',
@@ -19,26 +20,7 @@ Future<void> main() async {
   runApp(MyApp());
 }
 
-//位置情報が許可されていない時に許可をリクエストする
-//    Future(() async {
-
-Future<void> requestPermission() async {
-  LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-
-    if (permission == LocationPermission.denied) {
-      print("位置情報の権限が拒否されました");
-      return;
-    }
-    if (permission == LocationPermission.deniedForever) {
-      print("位置情報の権限が永久に拒否されています。設定から変更してください。");
-      return;
-    }
-
-    print("位置情報の権限が許可されました");
-  }
-}
+//位置情報が許可されていない時に許可をリクエストする関数はlocation_service.dartに移動しました
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
