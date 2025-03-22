@@ -15,6 +15,7 @@ import 'package:geek_hackathon1_21/repositories/intersection_repository.dart';
 import 'package:geek_hackathon1_21/services/osm_service.dart';
 import 'package:geek_hackathon1_21/widgets/crosswalk_layer_widget.dart';
 import 'package:geek_hackathon1_21/widgets/sidebar_widget.dart';
+import 'package:geek_hackathon1_21/repositories/signal_calculator.dart';
 
 class MapView extends ConsumerStatefulWidget {
   const MapView({super.key});
@@ -26,6 +27,7 @@ class MapView extends ConsumerStatefulWidget {
 class _MapViewState extends ConsumerState<MapView> {
   final MapController _mapController = MapController();
   late Timer _timer; // 定期実行用のタイマー
+  late Timer _crosswalkUpdateTimer;
   final LatLng _initialLocation = const LatLng(35.161940, 136.906947);
   late final MapControllerHelper _mapControllerHelper;
   late final LocationControllerHelper _locationController;
@@ -51,6 +53,10 @@ class _MapViewState extends ConsumerState<MapView> {
     _timer = Timer.periodic(const Duration(seconds: 6), (_) {
       _printCurrentTime();
     });
+
+    _crosswalkUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _updateCrosswalkColors();
+    });
   }
 
   /// **現在時刻を取得してデバッグ出力**
@@ -59,6 +65,72 @@ class _MapViewState extends ConsumerState<MapView> {
     String formattedTime = TimeOfDay.now().toString();
 
     //print("現在時刻: $formattedTime");
+  }
+
+  void _updateCrosswalkColors() async {
+    final crosswalks = ref.read(crosswalksProvider);
+    if (crosswalks.isEmpty) return;
+
+    Map<int?, List<Crosswalk>> crosswalksByIntersection = {};
+    for (var crosswalk in crosswalks) {
+      if (crosswalk.intersectionId != null) {
+        if (!crosswalksByIntersection.containsKey(crosswalk.intersectionId)) {
+          crosswalksByIntersection[crosswalk.intersectionId] = [];
+        }
+        crosswalksByIntersection[crosswalk.intersectionId]!.add(crosswalk);
+      }
+    }
+
+    bool anyUpdated = false;
+    for (var entry in crosswalksByIntersection.entries) {
+      final intersectionId = entry.key;
+      if (intersectionId == null) continue;
+
+      try {
+        final patternData = await _intersectionRepository.getLatestPatternData(
+          intersectionId,
+        );
+        if (patternData != null) {
+          final signalState = await Signal_calculator(
+            patternData,
+            intersectionId,
+          );
+
+          if (signalState != null) {
+            for (var crosswalk in entry.value) {
+              bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
+
+              Color newColor = signalState.getCrosswalkColor(isNorthSouth);
+
+              if (crosswalk.color != newColor) {
+                crosswalk.color = newColor;
+                anyUpdated = true;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        print("交差点 $intersectionId の信号更新エラー: $e");
+      }
+    }
+
+    if (anyUpdated && mounted) {
+      ref.read(crosswalksProvider.notifier).state = List.from(crosswalks);
+    }
+  }
+
+  bool _isNorthSouthOriented(List<LatLng> points) {
+    if (points.length < 2) return false;
+
+    final start = points.first;
+    final end = points.last;
+
+    final dx = end.longitude - start.longitude;
+    final dy = end.latitude - start.latitude;
+
+    final angle = math.atan2(dy, dx).abs();
+
+    return angle > math.pi / 4 && angle < 3 * math.pi / 4;
   }
 
   @override
@@ -154,6 +226,7 @@ class _MapViewState extends ConsumerState<MapView> {
   void dispose() {
     _locationController.dispose();
     _timer.cancel(); // **タイマーを停止**
+    _crosswalkUpdateTimer.cancel();
     _mapController.dispose();
     super.dispose();
   }

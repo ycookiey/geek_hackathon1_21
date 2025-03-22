@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
 import 'package:geek_hackathon1_21/models/crosswalk.dart';
+import 'package:geek_hackathon1_21/constants.dart';
+import 'package:geek_hackathon1_21/repositories/signal_calculator.dart';
 
 class OSMOverpassService {
   static const String _overpassApi = 'https://overpass-api.de/api/interpreter';
@@ -53,7 +56,104 @@ class OSMOverpassService {
     LatLng intersectionPosition,
   ) async {
     // 周囲20メートル以内の横断歩道を検索
-    return await getCrosswalksNearby(intersectionPosition, 20);
+    List<Crosswalk> crosswalks = await getCrosswalksNearby(
+      intersectionPosition,
+      20,
+    );
+
+    SignalState? signalState;
+    try {
+      final patternData = await _getLatestPatternData(intersectionId);
+      if (patternData != null) {
+        signalState = await Signal_calculator(patternData, intersectionId);
+      }
+    } catch (e) {
+      print("交差点 $intersectionId の信号状態取得エラー: $e");
+    }
+
+    List<Crosswalk> processedCrosswalks = [];
+    for (int i = 0; i < crosswalks.length; i++) {
+      bool isNorthSouth = _isNorthSouthOriented(crosswalks[i].points);
+
+      Color color;
+      if (signalState != null) {
+        color = signalState.getCrosswalkColor(isNorthSouth);
+      } else {
+        color =
+            i % 2 == 0
+                ? Colors.green.withAlpha(200)
+                : Colors.red.withAlpha(200);
+      }
+
+      processedCrosswalks.add(
+        Crosswalk(
+          id: crosswalks[i].id,
+          points: crosswalks[i].points,
+          intersectionId: intersectionId,
+          color: color,
+          opacity: 0.7,
+        ),
+      );
+    }
+
+    return processedCrosswalks;
+  }
+
+  static bool _isNorthSouthOriented(List<LatLng> points) {
+    if (points.length < 2) return false;
+
+    // 最初と最後の点を取得
+    final start = points.first;
+    final end = points.last;
+
+    // 線の角度を計算
+    final dx = end.longitude - start.longitude;
+    final dy = end.latitude - start.latitude;
+
+    // ラジアンでの絶対角度を計算
+    final angle = math.atan2(dy, dx).abs();
+
+    // 角度がPI/2（90度）に近ければ南北方向
+    return angle > math.pi / 4 && angle < 3 * math.pi / 4;
+  }
+
+  // 交差点の最新パターンデータを取得
+  static Future<Map<String, dynamic>?> _getLatestPatternData(
+    int intersectionId,
+  ) async {
+    DateTime now = DateTime.now();
+    int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
+    String time =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
+
+    String dayType;
+    if (weekdayNumber >= 1 && weekdayNumber <= 5) {
+      dayType = "weekday";
+    } else if (weekdayNumber == 6) {
+      dayType = "saturday";
+    } else {
+      dayType = "sunday";
+    }
+
+    try {
+      final response = await supabase
+          .from('intersection_regular_time_data')
+          .select()
+          .eq('intersection_id', intersectionId)
+          .eq('day_type', dayType)
+          .lte('time', time)
+          .order('time', ascending: false)
+          .limit(1);
+
+      if (response.isNotEmpty) {
+        return response[0];
+      }
+
+      return null;
+    } catch (e) {
+      print("パターン取得エラー $intersectionId: $e");
+      return null;
+    }
   }
 
   static List<Crosswalk> _parseCrosswalks(Map<String, dynamic> data) {
@@ -83,10 +183,8 @@ class OSMOverpassService {
         }
 
         if (wayPoints.length >= 2) {
-          final color =
-              crosswalks.length % 2 == 0
-                  ? Colors.green.withAlpha(200)
-                  : Colors.red.withAlpha(200);
+          // ここではデフォルトの色を設定（後で信号状態に基づいて変更される）
+          final color = Colors.green.withAlpha(200);
 
           crosswalks.add(
             Crosswalk(

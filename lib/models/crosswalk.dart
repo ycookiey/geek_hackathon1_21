@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 class Crosswalk {
   final String id;
   final List<LatLng> points;
-  final Color color;
+  final int? intersectionId;
+  Color color;
   final double opacity;
 
   Crosswalk({
     required this.id,
     required this.points,
+    this.intersectionId,
     this.color = Colors.green,
     this.opacity = 0.5,
   });
