@@ -27,6 +27,7 @@ class OSMService {
           'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
       userAgentPackageName: 'com.example.geek_hackathon1_21',
       subdomains: ['a', 'b', 'c', 'd'],
+      retinaMode: true,
     );
   }
 
