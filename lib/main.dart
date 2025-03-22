@@ -50,7 +50,8 @@ class _MapViewState extends ConsumerState<MapView> {
   late StreamSubscription<Position> _positionStream;
   late Timer _timer; // 定期実行用のタイマー
   int _intersectionId = 0;
-  int _cycle = 0;
+  bool _isSidebarVisible = false;
+  String? _selectedMarkerId; // 選択されたマーカーのID
 
   final LatLng _initialLocation = const LatLng(35.161940, 136.906947);
 
@@ -88,19 +89,18 @@ class _MapViewState extends ConsumerState<MapView> {
 
   Future<void> _getMarkersFromSupabase() async {
     final bounds = _mapController.camera.visibleBounds;
-    //double minLat = bounds.southwest.latitude;
-
+    final minLat = bounds.southWest.latitude;
     final maxLat = bounds.northEast.latitude;
     final minLng = bounds.southWest.longitude;
-    //double maxLng = bounds.northeast.longitude;
+    final maxLng = bounds.northEast.longitude;
 
     final maker_map = await supabase
         .from('intersection_location')
         .select('lat, lon, intersection_id')
-        //.gte('lat', minLat)
+        .gte('lat', minLat)
         .lte('lat', maxLat)
-        .gte('lon', minLng);
-    //.lte('lon', maxLng);
+        .gte('lon', minLng)
+        .lte('lon', maxLng);
 
     final markers = <Map<String, dynamic>>[];
 
@@ -115,29 +115,85 @@ class _MapViewState extends ConsumerState<MapView> {
   }
 
   Future<void> _getDataByTimeRange() async {
-    final now = DateTime.now();
-    final minTime = now.subtract(const Duration(hours: 1));
-    final maxTime = now.add(const Duration(hours: 1));
+    DateTime now = DateTime.now();
+    String weekType = "";
+    String weekdays = "";
+    int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
+    String today = "${now.year}/${now.month}/${now.day}";
+    String time =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
 
-    String minTimeStr =
-        "${minTime.hour.toString().padLeft(2, '0')}:${minTime.minute.toString().padLeft(2, '0')}:00";
-    String maxTimeStr =
-        "${maxTime.hour.toString().padLeft(2, '0')}:${maxTime.minute.toString().padLeft(2, '0')}:00";
-
-    final response = await supabase
-        .from('intersection_time_data')
-        .select()
-        .eq('intersection_id', _intersectionId)
-        .gte('time', minTimeStr) // 時刻が minTime 以上
-        .lte('time', maxTimeStr); // 時刻が maxTime 以下
-
-    if (response.isEmpty && _cycle < 24) {
-      _cycle += 1;
-      await _getDataByTimeRange();
+    if (weekdayNumber == 6 || weekdayNumber == 7) {
+      weekType = "holiday";
+    } else {
+      weekType = "weekday";
+    }
+    if (weekdayNumber == 1) {
+      weekdays = "monday";
+    } else if (weekdayNumber == 2) {
+      weekdays = "tuesday";
+    } else if (weekdayNumber == 3) {
+      weekdays = "wednesday";
+    } else if (weekdayNumber == 4) {
+      weekdays = "thursday";
+    } else if (weekdayNumber == 5) {
+      weekdays = "friday";
+    } else if (weekdayNumber == 6) {
+      weekdays = "saturday";
+    } else if (weekdayNumber == 7) {
+      weekdays = "sunday";
     }
 
-    print(response);
-    print("だよーん");
+    for (int Cycle = 0; Cycle < 24; Cycle++) {
+      //List<String> weekdays = [
+      //  'monday',
+      //  'tuesday',
+      //  'wednesday',
+      //  'thursday',
+      //  'friday',
+      //  'saturday',
+      //  'sunday',
+      //];
+      //print("現在のサイクル数");
+      //print(Cycle);
+      DateTime minTime = now.subtract(Duration(hours: (Cycle)));
+      DateTime maxTime = now.add(Duration(hours: (Cycle)));
+
+      String minTimeStr =
+          "${minTime.hour.toString().padLeft(2, '0')}:${minTime.minute.toString().padLeft(2, '0')}:00";
+      String maxTimeStr =
+          "${maxTime.hour.toString().padLeft(2, '0')}:${maxTime.minute.toString().padLeft(2, '0')}:00";
+
+      final response = await Supabase.instance.client
+          .from('intersection_regular_time_data')
+          .select()
+          .eq('intersection_id', _intersectionId)
+          .eq('day_type', weekdays)
+          .gte('time', minTimeStr) // 時刻が minTime 以上
+          .lte('time', maxTimeStr); // 時刻が maxTime 以下
+
+      if (response.isNotEmpty) {
+        print(response);
+        print("だよーん");
+
+        break;
+      } else {
+        final response2 = await Supabase.instance.client
+            .from('intersection_regular_time_data')
+            .select()
+            .eq('intersection_id', _intersectionId)
+            .eq('day_type', weekType)
+            .gte('time', minTimeStr) // 時刻が minTime 以上
+            .lte('time', maxTimeStr); // 時刻が maxTime 以下
+
+        if (response2.isNotEmpty) {
+          print(response);
+          print("だよーん");
+
+          break;
+        }
+      }
+    }
   }
 
   // カメラを現在地に移動
@@ -190,7 +246,12 @@ class _MapViewState extends ConsumerState<MapView> {
         OSMService.createCustomMarker(
           point: LatLng(marker['lat'], marker['lon']),
           id: '${marker['intersection_id']}',
-          onTap: (id) {},
+          onTap: (id) {
+            setState(() {
+              _selectedMarkerId = '${marker['intersection_id']}';
+              _isSidebarVisible = true;
+            });
+          },
         ),
       );
     }
@@ -210,6 +271,7 @@ class _MapViewState extends ConsumerState<MapView> {
                 initialZoom: 16.0,
                 onMapTap: () {
                   ref.read(isFollowingProvider.notifier).state = false;
+                  _isSidebarVisible = false; // どこかをタップしたら閉じる
                 },
                 onCameraIdle: () {
                   _getMarkersFromSupabase();
@@ -220,6 +282,44 @@ class _MapViewState extends ConsumerState<MapView> {
                 MarkerLayer(markers: mapMarkers),
               ],
             ),
+            AnimatedPositioned(
+              duration: Duration(milliseconds: 200),
+              right: _isSidebarVisible ? 0 : -200, // 非表示時は画面外へ
+              top: 0,
+              bottom: 0,
+              width: 200,
+              child: Container(
+                color: Colors.white,
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "マーカーID:",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      _selectedMarkerId ?? "選択なし",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Spacer(),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isSidebarVisible = false;
+                        });
+                      },
+                      child: Text("閉じる"),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             Positioned(
               bottom: 20,
               right: 20,
