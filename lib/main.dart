@@ -46,15 +46,15 @@ class MapView extends ConsumerStatefulWidget {
 }
 
 class _MapViewState extends ConsumerState<MapView> {
-  final MapController mapController = MapController();
-  late StreamSubscription<Position> positionStream;
+  final MapController _mapController = MapController();
+  late StreamSubscription<Position> _positionStream;
   late Timer _timer; // 定期実行用のタイマー
-  int IntersectionId = 0;
-  int Cycle = 0;
+  int _intersectionId = 0;
+  int _cycle = 0;
 
   final LatLng _initialLocation = const LatLng(35.161940, 136.906947);
 
-  final LocationSettings locationSettings = const LocationSettings(
+  final LocationSettings _locationSettings = const LocationSettings(
     accuracy: LocationAccuracy.high, //正確性:highはAndroid(0-100m),iOS(10m)
     distanceFilter: 0,
   );
@@ -67,52 +67,34 @@ class _MapViewState extends ConsumerState<MapView> {
     _setupPositionStream();
 
     // 時間チェック用タイマー
-    _timer = Timer.periodic(Duration(seconds: 6), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 6), (_) {
       _printCurrentTime();
     });
   }
 
   void _setupPositionStream() {
-    positionStream = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: _locationSettings,
     ).listen((Position? position) {
       if (position != null) {
         ref.read(currentPositionProvider.notifier).state = position;
 
         if (ref.read(isFollowingProvider)) {
-          moveCameraToCurrentPosition(); // 追従モードならカメラを移動
+          _moveCameraToCurrentPosition(); // 追従モードならカメラを移動
         }
-        //_getVisibleRegion(); // 位置更新時に四隅の座標取得
       }
     });
   }
 
-  Future<void> getMarkersFromSupabase() async {
-    final bounds = mapController.camera.visibleBounds;
+  Future<void> _getMarkersFromSupabase() async {
+    final bounds = _mapController.camera.visibleBounds;
     //double minLat = bounds.southwest.latitude;
+
     final maxLat = bounds.northEast.latitude;
     final minLng = bounds.southWest.longitude;
     //double maxLng = bounds.northeast.longitude;
-    DateTime now = DateTime.now();
-    int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
 
-    if (weekdayNumber == 6 || weekdayNumber == 7) {
-      int weekType = 1;
-    } else {
-      int weekType = 2;
-    }
-
-    List<String> weekdays = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-
-    final maker_map = await Supabase.instance.client
+    final maker_map = await supabase
         .from('intersection_location')
         .select('lat, lon, intersection_id')
         //.gte('lat', minLat)
@@ -120,42 +102,38 @@ class _MapViewState extends ConsumerState<MapView> {
         .gte('lon', minLng);
     //.lte('lon', maxLng);
 
-    final _markers = <Map<String, dynamic>>[];
+    final markers = <Map<String, dynamic>>[];
 
-    for (var item in maker_map) {
-      IntersectionId = item['intersection_id'];
-      await getDataByTimeRange();
+    for (final item in maker_map) {
+      _intersectionId = item['intersection_id'];
+      await _getDataByTimeRange();
 
-      _markers.add(item);
+      markers.add(item);
     }
 
-    ref.read(markersProvider.notifier).state = _markers;
+    ref.read(markersProvider.notifier).state = markers;
   }
 
-  Future<void> getDataByTimeRange() async {
-    DateTime now = DateTime.now();
-    String today = "${now.year}/${now.month}/${now.day}";
-    String time =
-        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
-
-    DateTime minTime = now.subtract(Duration(hours: 1));
-    DateTime maxTime = now.add(Duration(hours: 1));
+  Future<void> _getDataByTimeRange() async {
+    final now = DateTime.now();
+    final minTime = now.subtract(const Duration(hours: 1));
+    final maxTime = now.add(const Duration(hours: 1));
 
     String minTimeStr =
         "${minTime.hour.toString().padLeft(2, '0')}:${minTime.minute.toString().padLeft(2, '0')}:00";
     String maxTimeStr =
         "${maxTime.hour.toString().padLeft(2, '0')}:${maxTime.minute.toString().padLeft(2, '0')}:00";
 
-    final response = await Supabase.instance.client
+    final response = await supabase
         .from('intersection_time_data')
         .select()
-        .eq('intersection_id', IntersectionId)
+        .eq('intersection_id', _intersectionId)
         .gte('time', minTimeStr) // 時刻が minTime 以上
         .lte('time', maxTimeStr); // 時刻が maxTime 以下
 
-    if (response.isEmpty && Cycle < 24) {
-      Cycle += 1;
-      await getDataByTimeRange();
+    if (response.isEmpty && _cycle < 24) {
+      _cycle += 1;
+      await _getDataByTimeRange();
     }
 
     print(response);
@@ -163,12 +141,12 @@ class _MapViewState extends ConsumerState<MapView> {
   }
 
   // カメラを現在地に移動
-  void moveCameraToCurrentPosition() {
+  void _moveCameraToCurrentPosition() {
     final position = ref.read(currentPositionProvider);
     if (position != null) {
-      mapController.move(
+      _mapController.move(
         LatLng(position.latitude, position.longitude),
-        mapController.camera.zoom,
+        _mapController.camera.zoom,
       );
     }
   }
@@ -182,12 +160,12 @@ class _MapViewState extends ConsumerState<MapView> {
   }
 
   // 追従モードの切り替え
-  void toggleFollowMode() {
+  void _toggleFollowMode() {
     final isFollowing = ref.read(isFollowingProvider);
     ref.read(isFollowingProvider.notifier).state = !isFollowing;
 
     if (!isFollowing) {
-      moveCameraToCurrentPosition();
+      _moveCameraToCurrentPosition();
     }
   }
 
@@ -226,7 +204,7 @@ class _MapViewState extends ConsumerState<MapView> {
         body: Stack(
           children: [
             FlutterMap(
-              mapController: mapController,
+              mapController: _mapController,
               options: OSMService.getDefaultMapOptions(
                 initialCenter: _initialLocation,
                 initialZoom: 16.0,
@@ -234,7 +212,7 @@ class _MapViewState extends ConsumerState<MapView> {
                   ref.read(isFollowingProvider.notifier).state = false;
                 },
                 onCameraIdle: () {
-                  getMarkersFromSupabase();
+                  _getMarkersFromSupabase();
                 },
               ),
               children: [
@@ -247,7 +225,7 @@ class _MapViewState extends ConsumerState<MapView> {
               right: 20,
               child: FloatingActionButton(
                 backgroundColor: isFollowing ? Colors.blue : Colors.white,
-                onPressed: toggleFollowMode,
+                onPressed: _toggleFollowMode,
                 child: Icon(
                   isFollowing ? Icons.lock : Icons.lock_open,
                   color: isFollowing ? Colors.white : Colors.blue,
@@ -262,9 +240,9 @@ class _MapViewState extends ConsumerState<MapView> {
 
   @override
   void dispose() {
-    positionStream.cancel(); // ストリームを停止
+    _positionStream.cancel(); // ストリームを停止
     _timer.cancel(); // **タイマーを停止**
-    mapController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 }
