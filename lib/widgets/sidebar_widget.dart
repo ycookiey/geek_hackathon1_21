@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:geek_hackathon1_21/widgets/Offset.dart';
 
 class SidebarWidget extends StatelessWidget {
   final bool _isSidebarVisible;
   final String? selectedMarkerId;
   final VoidCallback onClose;
 
-  const SidebarWidget({
+  // 現在時刻を管理するための ValueNotifier
+  static final ValueNotifier<String?> _currentTimeNotifier =
+      ValueNotifier<String?>(null);
+
+  SidebarWidget({
     Key? key,
     required bool isVisible,
     this.selectedMarkerId,
@@ -33,6 +38,25 @@ class SidebarWidget extends StatelessWidget {
             ),
             SizedBox(height: 10),
             Text(selectedMarkerId ?? "選択なし", style: TextStyle(fontSize: 16)),
+
+            SizedBox(height: 20),
+            Text(
+              "記録時刻:",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10),
+            ValueListenableBuilder<String?>(
+              valueListenable: _currentTimeNotifier,
+              builder: (context, value, child) {
+                return Text(value ?? "未記録", style: TextStyle(fontSize: 16));
+              },
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => offset(selectedMarkerId ?? "選択なし"),
+              child: Text("現在時刻を記録"),
+            ),
+
             Spacer(),
             ElevatedButton(onPressed: onClose, child: Text("閉じる")),
           ],
