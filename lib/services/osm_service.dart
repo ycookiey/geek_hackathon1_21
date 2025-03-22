@@ -23,9 +23,10 @@ class OSMService {
 
   static TileLayer getDefaultTileLayer() {
     return TileLayer(
-      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      urlTemplate:
+          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
       userAgentPackageName: 'com.example.geek_hackathon1_21',
-      subdomains: ['a', 'b', 'c'],
+      subdomains: ['a', 'b', 'c', 'd'],
     );
   }
 
