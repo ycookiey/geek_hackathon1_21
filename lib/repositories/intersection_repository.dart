@@ -1,4 +1,5 @@
 import 'package:geek_hackathon1_21/constants.dart';
+import 'package:geek_hackathon1_21/repositories/signal_calculator.dart';
 
 class IntersectionRepository {
   Future<List<Map<String, dynamic>>> getIntersectionsInBounds({
@@ -21,6 +22,14 @@ class IntersectionRepository {
       for (final item in markerMap) {
         final intersectionId = item['intersection_id'];
         final patternData = await getLatestPatternData(intersectionId);
+        if (patternData?.isEmpty ?? true) {
+          print("データがないよ！！");
+        } else {
+          final SignalData = await Signal_calculator(
+            patternData,
+            intersectionId,
+          );
+        }
 
         markers.add(item);
       }
