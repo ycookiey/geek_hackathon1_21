@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,9 +9,11 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:geek_hackathon1_21/controllers/location_controller.dart';
 import 'package:geek_hackathon1_21/controllers/map_controller.dart';
+import 'package:geek_hackathon1_21/models/crosswalk.dart';
 import 'package:geek_hackathon1_21/providers/map_providers.dart';
 import 'package:geek_hackathon1_21/repositories/intersection_repository.dart';
 import 'package:geek_hackathon1_21/services/osm_service.dart';
+import 'package:geek_hackathon1_21/widgets/crosswalk_layer_widget.dart';
 import 'package:geek_hackathon1_21/widgets/sidebar_widget.dart';
 
 class MapView extends ConsumerStatefulWidget {
@@ -41,6 +44,7 @@ class _MapViewState extends ConsumerState<MapView> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locationController.setupPositionStream();
+      _mapControllerHelper.getMarkersInView(_intersectionRepository);
     });
 
     // 時間チェック用タイマー
@@ -62,6 +66,7 @@ class _MapViewState extends ConsumerState<MapView> {
     final currentPosition = ref.watch(currentPositionProvider);
     final isFollowing = ref.watch(isFollowingProvider);
     final markers = ref.watch(markersProvider);
+    final crosswalks = ref.watch(crosswalksProvider);
 
     final mapMarkers = <Marker>[];
 
@@ -116,6 +121,7 @@ class _MapViewState extends ConsumerState<MapView> {
               ),
               children: [
                 OSMService.getDefaultTileLayer(),
+                CrosswalkLayerWidget(crosswalks: crosswalks),
                 MarkerLayer(markers: mapMarkers),
               ],
             ),
