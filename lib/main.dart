@@ -63,9 +63,6 @@ class _MapViewState extends State<MapView> {
   //現在地を示すCircle
   Set<Circle> _circles = Set();
   Set<Marker> _markers = Set(); // マーカーを管理するセット
-  bool _isMarkerVisible = false; // マーカーの表示状態を管理
-
-  final LatLng _markerPosition = LatLng(35.14006731, 136.90313371); // ピンの座標
 
   Position? currentPosition;
   late GoogleMapController mapController;
@@ -73,6 +70,12 @@ class _MapViewState extends State<MapView> {
   late Timer _timer; // 定期実行用のタイマー
   bool isFollowing = true; // 追従モードの状態（デフォルトON）
   bool isUserInteracting = false; // ユーザーが手動で操作中かどうかを判定
+
+  String? selectedMarkerId; // 選択されたマーカーのID
+  bool isSidebarVisible = false; // サイドバーの表示状態
+
+  int IntersectionId = 0;
+  int Cycle = 0;
 
   //初期位置
   final CameraPosition _initialLocation = const CameraPosition(
@@ -90,7 +93,7 @@ class _MapViewState extends State<MapView> {
     super.initState();
 
     // **1秒ごとに現在時刻を取得 & 出力**
-    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(Duration(seconds: 6), (timer) {
       _printCurrentTime();
     });
 
@@ -101,13 +104,11 @@ class _MapViewState extends State<MapView> {
       if (position != null) {
         setState(() {
           currentPosition = position;
-          //_updateCircle(); //現在位置が更新されたら円も更新
         });
         if (isFollowing) {
           moveCameraToCurrentPosition(); // 追従モードならカメラを移動
         }
         //_getVisibleRegion(); // 位置更新時に四隅の座標取得
-        _updateMarkerVisibility(); //位置情報の更新時にマーカーの表示を判定
       }
     });
   }
@@ -118,10 +119,28 @@ class _MapViewState extends State<MapView> {
     double maxLat = bounds.northeast.latitude;
     double minLng = bounds.southwest.longitude;
     //double maxLng = bounds.northeast.longitude;
+    DateTime now = DateTime.now();
+    int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
 
-    final response = await Supabase.instance.client
+    if (weekdayNumber == 6 || weekdayNumber == 7) {
+      int weekType = 1;
+    } else {
+      int weekType = 2;
+    }
+
+    List<String> weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    final maker_map = await Supabase.instance.client
         .from('intersection_location')
-        .select('lat, lon')
+        .select('lat, lon, intersection_id')
         //.gte('lat', minLat)
         .lte('lat', maxLat)
         .gte('lon', minLng);
@@ -129,35 +148,60 @@ class _MapViewState extends State<MapView> {
 
     setState(() {
       _markers.clear();
-      for (var item in response) {
+      for (var item in maker_map) {
+        IntersectionId = item['intersection_id'];
+
+        getDataByTimeRange();
+
         _markers.add(
           Marker(
-            markerId: MarkerId('${item['lat']},${item['lon']}'),
+            //markerId: MarkerId('${item['lat']},${item['lon']}'),
+            markerId: MarkerId('${item['intersection_id']}'),
             position: LatLng(item['lat'], item['lon']),
             icon: BitmapDescriptor.defaultMarkerWithHue(
               BitmapDescriptor.hueBlue,
             ),
+
+            onTap: () {
+              setState(() {
+                selectedMarkerId = '${item['intersection_id']}';
+                isSidebarVisible = true;
+              });
+            },
           ),
         );
       }
     });
   }
 
-  // 現在位置を中心に半径100メートルの円を作成
-  void _updateCircle() {
-    if (currentPosition != null) {
-      final circle = Circle(
-        circleId: CircleId("current_location_circle"),
-        center: LatLng(currentPosition!.latitude, currentPosition!.longitude),
-        radius: 100, // 半径100メートル
-        //fillColor: Colors.blue.withOpacity(0.2), // 薄い青色
-        strokeColor: Colors.blue, // 青い円の縁
-        strokeWidth: 2,
-      );
-      setState(() {
-        _circles = {circle}; // 現在地の円を更新
-      });
+  Future<void> getDataByTimeRange() async {
+    DateTime now = DateTime.now();
+    String today = "${now.year}/${now.month}/${now.day}";
+    String time =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
+
+    DateTime minTime = now.subtract(Duration(hours: 1));
+    DateTime maxTime = now.add(Duration(hours: 1));
+
+    String minTimeStr =
+        "${minTime.hour.toString().padLeft(2, '0')}:${minTime.minute.toString().padLeft(2, '0')}:00";
+    String maxTimeStr =
+        "${maxTime.hour.toString().padLeft(2, '0')}:${maxTime.minute.toString().padLeft(2, '0')}:00";
+
+    final response = await Supabase.instance.client
+        .from('intersection_time_data')
+        .select()
+        .eq('intersection_id', IntersectionId)
+        .gte('time', minTimeStr) // 時刻が minTime 以上
+        .lte('time', maxTimeStr); // 時刻が maxTime 以下
+
+    if (response.isEmpty && Cycle < 24) {
+      Cycle += 1;
+      getDataByTimeRange();
     }
+
+    print(response);
+    print("だよーん");
   }
 
   // カメラを現在地に移動
@@ -173,38 +217,10 @@ class _MapViewState extends State<MapView> {
 
   /// **現在時刻を取得してデバッグ出力**
   void _printCurrentTime() {
-    String formattedTime = DateTime.now().toLocal().toString();
+    //String formattedTime = DateTime.now().toLocal().toString();
+    String formattedTime = TimeOfDay.now().toString();
+
     //print("現在時刻: $formattedTime");
-  }
-
-  // **マーカーの表示状態を更新**
-  Future<void> _updateMarkerVisibility() async {
-    if (currentPosition == null) return;
-
-    LatLngBounds visibleRegion = await mapController.getVisibleRegion();
-    bool shouldShowMarker = visibleRegion.contains(_markerPosition);
-
-    if (shouldShowMarker != _isMarkerVisible) {
-      setState(() {
-        _isMarkerVisible = shouldShowMarker;
-        _updateMarkers();
-      });
-    }
-  }
-
-  // **マーカーのセットを更新**
-  void _updateMarkers() {
-    _markers.clear(); // 一旦クリア
-    if (_isMarkerVisible) {
-      _markers.add(
-        Marker(
-          markerId: MarkerId("custom_marker"),
-          position: _markerPosition,
-          infoWindow: InfoWindow(title: "指定の地点"),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      );
-    }
   }
 
   /// Googleマップの表示範囲の四隅の座標を取得（カメラ移動後・ズーム変更後）
@@ -249,6 +265,7 @@ class _MapViewState extends State<MapView> {
                 // ← 追加！
                 setState(() {
                   isFollowing = false; // Google Map をタップしたら追尾モードを解除
+                  isSidebarVisible = false; // どこかをタップしたら閉じる
                 });
                 print("Google Map がタップされました！追尾モードOFF");
               },
@@ -265,12 +282,10 @@ class _MapViewState extends State<MapView> {
                 mapController = controller;
                 getMarkersFromSupabase();
                 moveCameraToCurrentPosition(); // 初期ロード時に現在地へ移動
-                //_updateMarkerVisibility(); // 初回表示時にマーカーの判定
               },
               onCameraIdle: () {
                 //_getVisibleRegion(); // カメラが停止したら四隅の座標を取得
                 getMarkersFromSupabase();
-                //_updateMarkerVisibility(); // カメラ移動後にマーカーの表示を更新
                 // カメラが手動操作されたら追従をOFFにする
                 if (isUserInteracting) {
                   setState(() {
@@ -279,6 +294,44 @@ class _MapViewState extends State<MapView> {
                 }
                 isUserInteracting = false;
               },
+            ),
+
+            AnimatedPositioned(
+              duration: Duration(milliseconds: 200),
+              right: isSidebarVisible ? 0 : -200, // 非表示時は画面外へ
+              top: 0,
+              bottom: 0,
+              width: 200,
+              child: Container(
+                color: Colors.white,
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "マーカーID:",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      selectedMarkerId ?? "選択なし",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    Spacer(),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          isSidebarVisible = false;
+                        });
+                      },
+                      child: Text("閉じる"),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             // 左下に「現在地」ボタンを配置
