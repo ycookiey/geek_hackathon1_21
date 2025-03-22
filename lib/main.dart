@@ -106,7 +106,7 @@ class _MapViewState extends ConsumerState<MapView> {
 
     for (final item in maker_map) {
       _intersectionId = item['intersection_id'];
-      await _getDataByTimeRange();
+      final patternData = await _getDataByLatest(_intersectionId);
 
       markers.add(item);
     }
@@ -114,85 +114,39 @@ class _MapViewState extends ConsumerState<MapView> {
     ref.read(markersProvider.notifier).state = markers;
   }
 
-  Future<void> _getDataByTimeRange() async {
+  Future<Map<String, dynamic>?> _getDataByLatest(int intersectionId) async {
     DateTime now = DateTime.now();
-    String weekType = "";
-    String weekdays = "";
     int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
-    String today = "${now.year}/${now.month}/${now.day}";
     String time =
         "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
 
-    if (weekdayNumber == 6 || weekdayNumber == 7) {
-      weekType = "holiday";
-    } else {
-      weekType = "weekday";
-    }
-    if (weekdayNumber == 1) {
-      weekdays = "monday";
-    } else if (weekdayNumber == 2) {
-      weekdays = "tuesday";
-    } else if (weekdayNumber == 3) {
-      weekdays = "wednesday";
-    } else if (weekdayNumber == 4) {
-      weekdays = "thursday";
-    } else if (weekdayNumber == 5) {
-      weekdays = "friday";
+    String dayType;
+    if (weekdayNumber >= 1 && weekdayNumber <= 5) {
+      dayType = "weekday";
     } else if (weekdayNumber == 6) {
-      weekdays = "saturday";
-    } else if (weekdayNumber == 7) {
-      weekdays = "sunday";
+      dayType = "saturday";
+    } else {
+      dayType = "sunday";
     }
 
-    for (int Cycle = 0; Cycle < 24; Cycle++) {
-      //List<String> weekdays = [
-      //  'monday',
-      //  'tuesday',
-      //  'wednesday',
-      //  'thursday',
-      //  'friday',
-      //  'saturday',
-      //  'sunday',
-      //];
-      //print("現在のサイクル数");
-      //print(Cycle);
-      DateTime minTime = now.subtract(Duration(hours: (Cycle)));
-      DateTime maxTime = now.add(Duration(hours: (Cycle)));
-
-      String minTimeStr =
-          "${minTime.hour.toString().padLeft(2, '0')}:${minTime.minute.toString().padLeft(2, '0')}:00";
-      String maxTimeStr =
-          "${maxTime.hour.toString().padLeft(2, '0')}:${maxTime.minute.toString().padLeft(2, '0')}:00";
-
-      final response = await Supabase.instance.client
+    try {
+      final response = await supabase
           .from('intersection_regular_time_data')
           .select()
-          .eq('intersection_id', _intersectionId)
-          .eq('day_type', weekdays)
-          .gte('time', minTimeStr) // 時刻が minTime 以上
-          .lte('time', maxTimeStr); // 時刻が maxTime 以下
+          .eq('intersection_id', intersectionId)
+          .eq('day_type', dayType)
+          .lte('time', time)
+          .order('time', ascending: false)
+          .limit(1);
 
       if (response.isNotEmpty) {
-        print(response);
-        print("だよーん");
-
-        break;
-      } else {
-        final response2 = await Supabase.instance.client
-            .from('intersection_regular_time_data')
-            .select()
-            .eq('intersection_id', _intersectionId)
-            .eq('day_type', weekType)
-            .gte('time', minTimeStr) // 時刻が minTime 以上
-            .lte('time', maxTimeStr); // 時刻が maxTime 以下
-
-        if (response2.isNotEmpty) {
-          print(response);
-          print("だよーん");
-
-          break;
-        }
+        return response[0];
       }
+
+      return null;
+    } catch (e) {
+      print("パターン取得エラー $intersectionId: $e");
+      return null;
     }
   }
 
