@@ -5,7 +5,7 @@ class Crosswalk {
   final String id;
   final List<LatLng> points;
   final int? intersectionId;
-  Color color;
+  final Color color;
   final double opacity;
 
   Crosswalk({
@@ -27,5 +27,15 @@ class Crosswalk {
     }
 
     return LatLng(lat / points.length, lng / points.length);
+  }
+
+  Crosswalk copyWith({Color? newColor}) {
+    return Crosswalk(
+      id: id,
+      points: points,
+      intersectionId: intersectionId,
+      color: newColor ?? color,
+      opacity: opacity,
+    );
   }
 }

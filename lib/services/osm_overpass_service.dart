@@ -59,13 +59,14 @@ class OSMOverpassService {
     // 周囲20メートル以内の横断歩道を検索
     List<Crosswalk> crosswalks = await getCrosswalksNearby(
       intersectionPosition,
-      20,
+      50,
     );
+
+    List<Crosswalk> processedCrosswalks = [];
 
     final patternInfo = await _patternManager.getPatternInfo(intersectionId);
     final signalState = patternInfo?.currentState;
 
-    List<Crosswalk> processedCrosswalks = [];
     for (int i = 0; i < crosswalks.length; i++) {
       bool isNorthSouth = _isNorthSouthOriented(crosswalks[i].points);
 
@@ -107,7 +108,7 @@ class OSMOverpassService {
     // ラジアンでの絶対角度を計算
     final angle = math.atan2(dy, dx).abs();
 
-    // 角度がPI/2（90度）に近ければ南北方向
+    // 角度がPI/4（45度）から3PI/4（135度）の間なら南北方向
     return angle > math.pi / 4 && angle < 3 * math.pi / 4;
   }
 

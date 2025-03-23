@@ -36,6 +36,7 @@ class _MapViewState extends ConsumerState<MapView> {
 
   bool _isSidebarVisible = false;
   String? _selectedMarkerId;
+  DateTime _lastColorUpdateTime = DateTime.now();
 
   @override
   void initState() {
@@ -56,7 +57,9 @@ class _MapViewState extends ConsumerState<MapView> {
       _printCurrentTime();
     });
 
-    _crosswalkUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _crosswalkUpdateTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      _,
+    ) {
       _updateCrosswalkColors();
     });
   }
@@ -73,6 +76,12 @@ class _MapViewState extends ConsumerState<MapView> {
     final crosswalks = ref.read(crosswalksProvider);
     if (crosswalks.isEmpty) return;
 
+    DateTime now = DateTime.now();
+    if (now.second == _lastColorUpdateTime.second && now.millisecond < 600) {
+      return;
+    }
+    _lastColorUpdateTime = now;
+
     Map<int?, List<Crosswalk>> crosswalksByIntersection = {};
     for (var crosswalk in crosswalks) {
       if (crosswalk.intersectionId != null) {
@@ -83,36 +92,44 @@ class _MapViewState extends ConsumerState<MapView> {
       }
     }
 
-    bool anyUpdated = false;
-    for (var entry in crosswalksByIntersection.entries) {
-      final intersectionId = entry.key;
-      if (intersectionId == null) continue;
+    List<Crosswalk> updatedCrosswalks = [];
+
+    for (var crosswalk in crosswalks) {
+      if (crosswalk.intersectionId == null) {
+        updatedCrosswalks.add(crosswalk);
+        continue;
+      }
 
       try {
         final patternInfo = await _signalPatternManager.getPatternInfo(
-          intersectionId,
+          crosswalk.intersectionId!,
         );
 
         if (patternInfo != null && patternInfo.currentState != null) {
           final signalState = patternInfo.currentState!;
+          bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
+          Color newColor = signalState.getCrosswalkColor(isNorthSouth);
 
-          for (var crosswalk in entry.value) {
-            bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
-            Color newColor = signalState.getCrosswalkColor(isNorthSouth);
-
-            if (crosswalk.color != newColor) {
-              crosswalk.color = newColor;
-              anyUpdated = true;
-            }
-          }
+          updatedCrosswalks.add(
+            Crosswalk(
+              id: crosswalk.id,
+              points: crosswalk.points,
+              intersectionId: crosswalk.intersectionId,
+              color: newColor,
+              opacity: crosswalk.opacity,
+            ),
+          );
+        } else {
+          updatedCrosswalks.add(crosswalk);
         }
       } catch (e) {
-        print("交差点 $intersectionId の信号更新エラー: $e");
+        print("交差点 ${crosswalk.intersectionId} の信号更新エラー: $e");
+        updatedCrosswalks.add(crosswalk);
       }
     }
 
-    if (anyUpdated && mounted) {
-      ref.read(crosswalksProvider.notifier).state = List.from(crosswalks);
+    if (mounted) {
+      ref.read(crosswalksProvider.notifier).state = updatedCrosswalks;
     }
   }
 

@@ -7,6 +7,7 @@ class PatternInfo {
   final DateTime nextChangeTime;
   final String nextPatternId;
   SignalState? currentState;
+  DateTime lastUpdated = DateTime.now();
 
   PatternInfo({
     required this.patternData,
@@ -14,6 +15,16 @@ class PatternInfo {
     required this.nextPatternId,
     this.currentState,
   });
+
+  bool isStateOutdated() {
+    final now = DateTime.now();
+    return now.difference(lastUpdated).inSeconds >= 1;
+  }
+
+  Future<void> updateSignalState(int intersectionId) async {
+    currentState = await Signal_calculator(patternData, intersectionId);
+    lastUpdated = DateTime.now();
+  }
 }
 
 class SignalPatternManager {
@@ -24,9 +35,14 @@ class SignalPatternManager {
 
     if (_patternCache.containsKey(intersectionId)) {
       final cachedInfo = _patternCache[intersectionId]!;
+
       if (now.isBefore(cachedInfo.nextChangeTime)) {
+        if (cachedInfo.isStateOutdated()) {
+          await cachedInfo.updateSignalState(intersectionId);
+        }
         return cachedInfo;
       }
+      _patternCache.remove(intersectionId);
     }
 
     final dayType = _getDayType(now);
