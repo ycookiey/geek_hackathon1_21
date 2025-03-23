@@ -18,12 +18,19 @@ class PatternInfo {
 
   bool isStateOutdated() {
     final now = DateTime.now();
-    return now.difference(lastUpdated).inSeconds >= 1;
+    // より頻繁に更新するため、100ms以上経過したら更新とする
+    return now.difference(lastUpdated).inMilliseconds >= 100;
   }
 
   Future<void> updateSignalState(int intersectionId) async {
     currentState = await Signal_calculator(patternData, intersectionId);
     lastUpdated = DateTime.now();
+  }
+
+  // 現在の残り時間を取得（ステートの更新なしで計算可能）
+  int getCurrentRemainingSeconds() {
+    if (currentState == null) return 0;
+    return currentState!.getCurrentRemainingSeconds();
   }
 }
 

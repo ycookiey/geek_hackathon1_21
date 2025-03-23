@@ -10,6 +10,8 @@ class SignalState {
   final bool isPedestrianNSGreen;
   final bool isPedestrianEWGreen;
   final int remainingSeconds;
+  final double remainingSecondsExact;
+  final DateTime calculatedAt;
 
   SignalState({
     required this.intersectionId,
@@ -19,7 +21,17 @@ class SignalState {
     required this.isPedestrianNSGreen,
     required this.isPedestrianEWGreen,
     required this.remainingSeconds,
+    required this.remainingSecondsExact,
+    required this.calculatedAt,
   });
+
+  int getCurrentRemainingSeconds() {
+    final now = DateTime.now();
+    final elapsedSinceCalculation =
+        now.difference(calculatedAt).inMilliseconds / 1000.0;
+    final currentRemaining = remainingSecondsExact - elapsedSinceCalculation;
+    return currentRemaining > 0 ? currentRemaining.round() : 0;
+  }
 
   Color getCrosswalkColor(bool isNorthSouth) {
     if (isNorthSouth) {
@@ -44,6 +56,7 @@ Future<SignalState?> Signal_calculator(
   }
 
   String patternId = patternData['pattern_id'];
+  final calculationTime = DateTime.now();
 
   try {
     final patternResult = await supabase
@@ -88,10 +101,11 @@ Future<SignalState?> Signal_calculator(
       accumulatedSplitTimes.add(accumulated);
     }
 
-    // 現在時刻をサイクル長で割った余り
-    DateTime now = DateTime.now();
+    DateTime now = calculationTime;
     int secondsSinceMidnight = now.hour * 3600 + now.minute * 60 + now.second;
-    double currentCycleTime = (secondsSinceMidnight % cycle).toDouble();
+    double millisecondsFraction = now.millisecond / 1000.0;
+    double currentCycleTime =
+        ((secondsSinceMidnight + millisecondsFraction) % cycle);
 
     // 現在どのスプリット内にいるか
     int currentSplitIndex = 0;
@@ -142,6 +156,8 @@ Future<SignalState?> Signal_calculator(
       isPedestrianNSGreen: isPedestrianNSGreen,
       isPedestrianEWGreen: isPedestrianEWGreen,
       remainingSeconds: remainingTimeInCurrentSplit.round(),
+      remainingSecondsExact: remainingTimeInCurrentSplit,
+      calculatedAt: calculationTime,
     );
   } catch (e) {
     print("信号状態計算エラー $intersectionId: $e");
