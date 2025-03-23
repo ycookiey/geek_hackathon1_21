@@ -5,10 +5,11 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter/material.dart';
 import 'package:geek_hackathon1_21/models/crosswalk.dart';
 import 'package:geek_hackathon1_21/constants.dart';
-import 'package:geek_hackathon1_21/repositories/signal_calculator.dart';
+import 'package:geek_hackathon1_21/services/signal_pattern_manager.dart';
 
 class OSMOverpassService {
   static const String _overpassApi = 'https://overpass-api.de/api/interpreter';
+  static final SignalPatternManager _patternManager = SignalPatternManager();
 
   static Future<List<Crosswalk>> getCrosswalksNearby(
     LatLng position,
@@ -61,15 +62,8 @@ class OSMOverpassService {
       20,
     );
 
-    SignalState? signalState;
-    try {
-      final patternData = await _getLatestPatternData(intersectionId);
-      if (patternData != null) {
-        signalState = await Signal_calculator(patternData, intersectionId);
-      }
-    } catch (e) {
-      print("交差点 $intersectionId の信号状態取得エラー: $e");
-    }
+    final patternInfo = await _patternManager.getPatternInfo(intersectionId);
+    final signalState = patternInfo?.currentState;
 
     List<Crosswalk> processedCrosswalks = [];
     for (int i = 0; i < crosswalks.length; i++) {
@@ -115,45 +109,6 @@ class OSMOverpassService {
 
     // 角度がPI/2（90度）に近ければ南北方向
     return angle > math.pi / 4 && angle < 3 * math.pi / 4;
-  }
-
-  // 交差点の最新パターンデータを取得
-  static Future<Map<String, dynamic>?> _getLatestPatternData(
-    int intersectionId,
-  ) async {
-    DateTime now = DateTime.now();
-    int weekdayNumber = now.weekday; // 1:月, 2:火, ..., 7:日
-    String time =
-        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:00";
-
-    String dayType;
-    if (weekdayNumber >= 1 && weekdayNumber <= 5) {
-      dayType = "weekday";
-    } else if (weekdayNumber == 6) {
-      dayType = "saturday";
-    } else {
-      dayType = "sunday";
-    }
-
-    try {
-      final response = await supabase
-          .from('intersection_regular_time_data')
-          .select()
-          .eq('intersection_id', intersectionId)
-          .eq('day_type', dayType)
-          .lte('time', time)
-          .order('time', ascending: false)
-          .limit(1);
-
-      if (response.isNotEmpty) {
-        return response[0];
-      }
-
-      return null;
-    } catch (e) {
-      print("パターン取得エラー $intersectionId: $e");
-      return null;
-    }
   }
 
   static List<Crosswalk> _parseCrosswalks(Map<String, dynamic> data) {

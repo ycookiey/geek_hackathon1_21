@@ -13,9 +13,9 @@ import 'package:geek_hackathon1_21/models/crosswalk.dart';
 import 'package:geek_hackathon1_21/providers/map_providers.dart';
 import 'package:geek_hackathon1_21/repositories/intersection_repository.dart';
 import 'package:geek_hackathon1_21/services/osm_service.dart';
+import 'package:geek_hackathon1_21/services/signal_pattern_manager.dart';
 import 'package:geek_hackathon1_21/widgets/crosswalk_layer_widget.dart';
 import 'package:geek_hackathon1_21/widgets/sidebar_widget.dart';
-import 'package:geek_hackathon1_21/repositories/signal_calculator.dart';
 
 class MapView extends ConsumerStatefulWidget {
   const MapView({super.key});
@@ -32,6 +32,7 @@ class _MapViewState extends ConsumerState<MapView> {
   late final MapControllerHelper _mapControllerHelper;
   late final LocationControllerHelper _locationController;
   late final IntersectionRepository _intersectionRepository;
+  late final SignalPatternManager _signalPatternManager;
 
   bool _isSidebarVisible = false;
   String? _selectedMarkerId;
@@ -43,6 +44,7 @@ class _MapViewState extends ConsumerState<MapView> {
     _locationController = LocationControllerHelper(ref, _mapController);
     _mapControllerHelper = MapControllerHelper(_mapController, ref);
     _intersectionRepository = IntersectionRepository();
+    _signalPatternManager = SignalPatternManager();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locationController.setupPositionStream();
@@ -87,25 +89,20 @@ class _MapViewState extends ConsumerState<MapView> {
       if (intersectionId == null) continue;
 
       try {
-        final patternData = await _intersectionRepository.getLatestPatternData(
+        final patternInfo = await _signalPatternManager.getPatternInfo(
           intersectionId,
         );
-        if (patternData != null) {
-          final signalState = await Signal_calculator(
-            patternData,
-            intersectionId,
-          );
 
-          if (signalState != null) {
-            for (var crosswalk in entry.value) {
-              bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
+        if (patternInfo != null && patternInfo.currentState != null) {
+          final signalState = patternInfo.currentState!;
 
-              Color newColor = signalState.getCrosswalkColor(isNorthSouth);
+          for (var crosswalk in entry.value) {
+            bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
+            Color newColor = signalState.getCrosswalkColor(isNorthSouth);
 
-              if (crosswalk.color != newColor) {
-                crosswalk.color = newColor;
-                anyUpdated = true;
-              }
+            if (crosswalk.color != newColor) {
+              crosswalk.color = newColor;
+              anyUpdated = true;
             }
           }
         }
