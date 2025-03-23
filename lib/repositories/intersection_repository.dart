@@ -10,7 +10,7 @@ class IntersectionRepository {
   }) async {
     try {
       final markerMap = await supabase
-          .from('intersection_location')
+          .from('regular_intersection_location')
           .select('lat, lon, intersection_id')
           .gte('lat', minLat)
           .lte('lat', maxLat)
