@@ -10,12 +10,17 @@ import 'package:latlong2/latlong.dart';
 import 'package:geek_hackathon1_21/controllers/location_controller.dart';
 import 'package:geek_hackathon1_21/controllers/map_controller.dart';
 import 'package:geek_hackathon1_21/models/crosswalk.dart';
+import 'package:geek_hackathon1_21/models/crosswalk_timer_overlay.dart';
 import 'package:geek_hackathon1_21/providers/map_providers.dart';
 import 'package:geek_hackathon1_21/repositories/intersection_repository.dart';
 import 'package:geek_hackathon1_21/services/osm_service.dart';
 import 'package:geek_hackathon1_21/services/signal_pattern_manager.dart';
 import 'package:geek_hackathon1_21/widgets/crosswalk_layer_widget.dart';
 import 'package:geek_hackathon1_21/widgets/sidebar_widget.dart';
+
+final crosswalkTimerInfoProvider = StateProvider<List<Map<String, dynamic>>>(
+  (ref) => [],
+);
 
 class MapView extends ConsumerStatefulWidget {
   const MapView({super.key});
@@ -93,6 +98,7 @@ class _MapViewState extends ConsumerState<MapView> {
     }
 
     List<Crosswalk> updatedCrosswalks = [];
+    List<Map<String, dynamic>> timerInfoList = [];
 
     for (var crosswalk in crosswalks) {
       if (crosswalk.intersectionId == null) {
@@ -108,7 +114,18 @@ class _MapViewState extends ConsumerState<MapView> {
         if (patternInfo != null && patternInfo.currentState != null) {
           final signalState = patternInfo.currentState!;
           bool isNorthSouth = _isNorthSouthOriented(crosswalk.points);
+          bool isGreen =
+              isNorthSouth
+                  ? signalState.isPedestrianNSGreen
+                  : signalState.isPedestrianEWGreen;
           Color newColor = signalState.getCrosswalkColor(isNorthSouth);
+
+          if (isGreen) {
+            timerInfoList.add({
+              'position': crosswalk.center,
+              'remainingSeconds': signalState.remainingSeconds,
+            });
+          }
 
           updatedCrosswalks.add(
             Crosswalk(
@@ -130,6 +147,7 @@ class _MapViewState extends ConsumerState<MapView> {
 
     if (mounted) {
       ref.read(crosswalksProvider.notifier).state = updatedCrosswalks;
+      ref.read(crosswalkTimerInfoProvider.notifier).state = timerInfoList;
     }
   }
 
@@ -153,6 +171,7 @@ class _MapViewState extends ConsumerState<MapView> {
     final isFollowing = ref.watch(isFollowingProvider);
     final markers = ref.watch(markersProvider);
     final crosswalks = ref.watch(crosswalksProvider);
+    final timerInfoList = ref.watch(crosswalkTimerInfoProvider);
 
     final mapMarkers = <Marker>[];
 
@@ -209,6 +228,12 @@ class _MapViewState extends ConsumerState<MapView> {
                 OSMService.getDefaultTileLayer(),
                 CrosswalkLayerWidget(crosswalks: crosswalks),
                 MarkerLayer(markers: mapMarkers),
+                ...timerInfoList.map(
+                  (info) => CrosswalkTimerOverlay(
+                    position: info['position'],
+                    remainingSeconds: info['remainingSeconds'],
+                  ),
+                ),
               ],
             ),
 

@@ -9,6 +9,7 @@ class SignalState {
   final int currentSplitIndex;
   final bool isPedestrianNSGreen;
   final bool isPedestrianEWGreen;
+  final int remainingSeconds;
 
   SignalState({
     required this.intersectionId,
@@ -17,6 +18,7 @@ class SignalState {
     required this.currentSplitIndex,
     required this.isPedestrianNSGreen,
     required this.isPedestrianEWGreen,
+    required this.remainingSeconds,
   });
 
   Color getCrosswalkColor(bool isNorthSouth) {
@@ -94,8 +96,10 @@ Future<SignalState?> Signal_calculator(
     // 現在どのスプリット内にいるか
     int currentSplitIndex = 0;
     double timeAccumulated = 0;
+    double previousTimeAccumulated = 0;
 
     for (int i = 0; i < splitTimesSeconds.length; i++) {
+      previousTimeAccumulated = timeAccumulated;
       timeAccumulated += splitTimesSeconds[i];
       if (currentCycleTime < timeAccumulated) {
         currentSplitIndex = i;
@@ -103,13 +107,18 @@ Future<SignalState?> Signal_calculator(
       }
     }
 
+    double elapsedTimeInCurrentSplit =
+        currentCycleTime - previousTimeAccumulated;
+    double totalSplitTime = splitTimesSeconds[currentSplitIndex];
+    double remainingTimeInCurrentSplit =
+        totalSplitTime - elapsedTimeInCurrentSplit;
+
     bool isPedestrianNSGreen = false;
     bool isPedestrianEWGreen = false;
 
     if (splits.length == 4) {
       // スプリット1: 方向A青、スプリット2: 方向A矢印、スプリット3: 方向B青、スプリット4: 方向B矢印
       isPedestrianNSGreen = (currentSplitIndex == 2);
-
       isPedestrianEWGreen = (currentSplitIndex == 0);
     } else if (splits.length == 3) {
       // スプリットが3つの場合: スプリット1=方向A青、スプリット2=矢印、スプリット3=方向B青
@@ -132,6 +141,7 @@ Future<SignalState?> Signal_calculator(
       currentSplitIndex: currentSplitIndex,
       isPedestrianNSGreen: isPedestrianNSGreen,
       isPedestrianEWGreen: isPedestrianEWGreen,
+      remainingSeconds: remainingTimeInCurrentSplit.round(),
     );
   } catch (e) {
     print("信号状態計算エラー $intersectionId: $e");
