@@ -44,6 +44,46 @@ class SignalState {
           : Colors.red.withAlpha(200);
     }
   }
+
+  bool isNextToTurnGreen(bool isNorthSouth) {
+    if (splits.length == 4) {
+      if (currentSplitIndex == 1) {
+        return isNorthSouth;
+      } else if (currentSplitIndex == 3) {
+        return !isNorthSouth;
+      }
+    } else if (splits.length == 3) {
+      if (currentSplitIndex == 1) {
+        return isNorthSouth;
+      } else if (currentSplitIndex == 2) {
+        return !isNorthSouth;
+      }
+    } else if (splits.length == 2) {
+      if (currentSplitIndex == 0) {
+        return isNorthSouth;
+      } else {
+        return !isNorthSouth;
+      }
+    }
+    return false;
+  }
+
+  int getSecondsUntilNextGreen(bool isNorthSouth) {
+    if (isGreen(isNorthSouth)) {
+      return getCurrentRemainingSeconds();
+    }
+
+    if (!isNextToTurnGreen(isNorthSouth)) {
+      return -1;
+    }
+
+    int secondsToNextSplit = getCurrentRemainingSeconds();
+    return secondsToNextSplit;
+  }
+
+  bool isGreen(bool isNorthSouth) {
+    return isNorthSouth ? isPedestrianNSGreen : isPedestrianEWGreen;
+  }
 }
 
 Future<SignalState?> Signal_calculator(
