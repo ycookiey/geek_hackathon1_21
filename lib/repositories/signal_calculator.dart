@@ -12,6 +12,7 @@ class SignalState {
   final int remainingSeconds;
   final double remainingSecondsExact;
   final DateTime calculatedAt;
+  final int? offset;
 
   SignalState({
     required this.intersectionId,
@@ -23,6 +24,7 @@ class SignalState {
     required this.remainingSeconds,
     required this.remainingSecondsExact,
     required this.calculatedAt,
+    this.offset,
   });
 
   int getCurrentRemainingSeconds() {
@@ -126,6 +128,19 @@ Future<SignalState?> Signal_calculator(
       return null;
     }
 
+    int offsetValue = 0;
+
+    final offsetResult = await supabase
+        .from('intersection_regular_time_data')
+        .select('offset')
+        .eq('intersection_id', intersectionId)
+        .eq('pattern_id', patternId)
+        .limit(1);
+
+    if (offsetResult.isNotEmpty && offsetResult[0]['offset'] != null) {
+      offsetValue = offsetResult[0]['offset'] as int;
+    }
+
     List<double> splitTimesSeconds = [];
     for (int split in splits) {
       // パーセンテージから秒数に変換
@@ -144,8 +159,12 @@ Future<SignalState?> Signal_calculator(
     DateTime now = calculationTime;
     int secondsSinceMidnight = now.hour * 3600 + now.minute * 60 + now.second;
     double millisecondsFraction = now.millisecond / 1000.0;
-    double currentCycleTime =
-        ((secondsSinceMidnight + millisecondsFraction) % cycle);
+
+    double currentCycleTime;
+
+    int adjustedSeconds = (secondsSinceMidnight - offsetValue) % cycle;
+    if (adjustedSeconds < 0) adjustedSeconds += cycle;
+    currentCycleTime = adjustedSeconds + millisecondsFraction;
 
     // 現在どのスプリット内にいるか
     int currentSplitIndex = 0;
@@ -198,6 +217,7 @@ Future<SignalState?> Signal_calculator(
       remainingSeconds: remainingTimeInCurrentSplit.round(),
       remainingSecondsExact: remainingTimeInCurrentSplit,
       calculatedAt: calculationTime,
+      offset: offsetValue,
     );
   } catch (e) {
     print("信号状態計算エラー $intersectionId: $e");

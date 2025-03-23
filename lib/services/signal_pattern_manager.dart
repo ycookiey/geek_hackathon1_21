@@ -60,7 +60,7 @@ class SignalPatternManager {
     try {
       final currentPatternResponse = await supabase
           .from('intersection_regular_time_data')
-          .select()
+          .select('*, offset')
           .eq('intersection_id', intersectionId)
           .eq('day_type', dayType)
           .lte('time', currentTime)
