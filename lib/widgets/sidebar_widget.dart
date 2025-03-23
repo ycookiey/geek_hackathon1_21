@@ -214,7 +214,12 @@ class SidebarWidget extends ConsumerWidget {
                 ),
                 SizedBox(height: 20),
                 ElevatedButton(
-                  onPressed: () => offset(selectedMarkerId ?? ""),
+                  onPressed: () async {
+                    offset(selectedMarkerId ?? "");
+                    _currentTimeNotifier.value = await PrintOffsetTime(
+                      selectedMarkerId ?? "",
+                    );
+                  },
                   child: Text("現在時刻を記録"),
                 ),
 
