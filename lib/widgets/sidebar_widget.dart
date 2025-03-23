@@ -46,16 +46,6 @@ class SidebarWidget extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "マーカーID:",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  selectedMarkerId ?? "選択なし",
-                  style: TextStyle(fontSize: 16),
-                ),
-
                 SizedBox(height: 20),
                 Text(
                   "サイクル長:",
@@ -110,118 +100,10 @@ class SidebarWidget extends ConsumerWidget {
                             ],
                           ),
                         ),
-                      SizedBox(height: 10),
-                      Text(
-                        "現在のスプリット: ${signalState.currentSplitIndex + 1}",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
                     ],
                   )
                 else
                   Text("スプリットデータなし", style: TextStyle(fontSize: 14)),
-
-                SizedBox(height: 20),
-                Text(
-                  "横断歩道状態:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 5),
-                if (signalState != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            color:
-                                signalState.isPedestrianNSGreen
-                                    ? Colors.green
-                                    : Colors.red,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            "南北方向: ${signalState.isPedestrianNSGreen ? '青信号' : '赤信号'}",
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            color:
-                                signalState.isPedestrianEWGreen
-                                    ? Colors.green
-                                    : Colors.red,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            "東西方向: ${signalState.isPedestrianEWGreen ? '青信号' : '赤信号'}",
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                else
-                  Text("データなし", style: TextStyle(fontSize: 14)),
-
-                SizedBox(height: 20),
-                Text(
-                  "信号パターン:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  patternInfo != null
-                      ? "${patternInfo.patternData['pattern_id']}"
-                      : "データなし",
-                  style: TextStyle(fontSize: 14),
-                ),
-
-                SizedBox(height: 10),
-                Text(
-                  "次のパターン変更:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  patternInfo != null
-                      ? "${patternInfo.nextChangeTime.hour}:${patternInfo.nextChangeTime.minute.toString().padLeft(2, '0')} (${patternInfo.nextPatternId})"
-                      : "データなし",
-                  style: TextStyle(fontSize: 14),
-                ),
-
-                SizedBox(height: 20),
-                Text(
-                  "記録時刻:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 10),
-                ValueListenableBuilder<String?>(
-                  valueListenable: _currentTimeNotifier,
-                  builder: (context, value, child) {
-                    return Text(value ?? "未記録", style: TextStyle(fontSize: 16));
-                  },
-                ),
-                SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    offset(selectedMarkerId ?? "");
-                    _currentTimeNotifier.value = await PrintOffsetTime(
-                      selectedMarkerId ?? "",
-                    );
-                  },
-                  child: Text("現在時刻を記録"),
-                ),
 
                 Spacer(),
                 ElevatedButton(
