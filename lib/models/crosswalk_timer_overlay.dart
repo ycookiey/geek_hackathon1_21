@@ -5,17 +5,30 @@ import 'package:latlong2/latlong.dart';
 class CrosswalkTimerOverlay extends StatelessWidget {
   final LatLng position;
   final int remainingSeconds;
+  final bool isNextGreen;
 
   const CrosswalkTimerOverlay({
     Key? key,
     required this.position,
     required this.remainingSeconds,
+    this.isNextGreen = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // 残り時間に基づいて色を決定 (赤は使わない)
-    Color timerColor = remainingSeconds < 5 ? Colors.amber : Colors.green;
+    Color timerColor;
+    Color borderColor;
+    Color textColor;
+
+    if (isNextGreen) {
+      timerColor = Colors.white.withOpacity(0.8);
+      borderColor = Colors.red;
+      textColor = Colors.red;
+    } else {
+      timerColor = Colors.white.withOpacity(0.8);
+      borderColor = remainingSeconds < 5 ? Colors.amber : Colors.green;
+      textColor = remainingSeconds < 5 ? Colors.amber : Colors.green;
+    }
 
     return MarkerLayer(
       markers: [
@@ -25,9 +38,9 @@ class CrosswalkTimerOverlay extends StatelessWidget {
           point: position,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.8),
+              color: timerColor,
               shape: BoxShape.circle,
-              border: Border.all(color: timerColor, width: 3.0),
+              border: Border.all(color: borderColor, width: 3.0),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black26,
@@ -42,7 +55,7 @@ class CrosswalkTimerOverlay extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: timerColor,
+                  color: textColor,
                 ),
               ),
             ),

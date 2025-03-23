@@ -118,13 +118,25 @@ class _MapViewState extends ConsumerState<MapView> {
               isNorthSouth
                   ? signalState.isPedestrianNSGreen
                   : signalState.isPedestrianEWGreen;
+
+          bool isNextGreen = signalState.isNextToTurnGreen(isNorthSouth);
           Color newColor = signalState.getCrosswalkColor(isNorthSouth);
 
           if (isGreen) {
             timerInfoList.add({
               'position': crosswalk.center,
-              'remainingSeconds': signalState.remainingSeconds,
+              'remainingSeconds': signalState.getCurrentRemainingSeconds(),
+              'isNextGreen': false,
             });
+          } else if (isNextGreen) {
+            int remainingTime = signalState.getCurrentRemainingSeconds();
+            if (remainingTime > 0) {
+              timerInfoList.add({
+                'position': crosswalk.center,
+                'remainingSeconds': remainingTime,
+                'isNextGreen': true, // 次に青になる赤信号
+              });
+            }
           }
 
           updatedCrosswalks.add(
@@ -232,6 +244,7 @@ class _MapViewState extends ConsumerState<MapView> {
                   (info) => CrosswalkTimerOverlay(
                     position: info['position'],
                     remainingSeconds: info['remainingSeconds'],
+                    isNextGreen: info['isNextGreen'] ?? false,
                   ),
                 ),
               ],
