@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geek_hackathon1_21/constants.dart';
 import 'package:geek_hackathon1_21/services/signal_pattern_manager.dart';
+import 'package:geek_hackathon1_21/widgets/Offset.dart';
 
 class SidebarWidget extends ConsumerWidget {
   final bool _isSidebarVisible;
@@ -197,6 +198,24 @@ class SidebarWidget extends ConsumerWidget {
                       ? "${patternInfo.nextChangeTime.hour}:${patternInfo.nextChangeTime.minute.toString().padLeft(2, '0')} (${patternInfo.nextPatternId})"
                       : "データなし",
                   style: TextStyle(fontSize: 14),
+                ),
+
+                SizedBox(height: 20),
+                Text(
+                  "記録時刻:",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 10),
+                ValueListenableBuilder<String?>(
+                  valueListenable: _currentTimeNotifier,
+                  builder: (context, value, child) {
+                    return Text(value ?? "未記録", style: TextStyle(fontSize: 16));
+                  },
+                ),
+                SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => offset(selectedMarkerId ?? ""),
+                  child: Text("現在時刻を記録"),
                 ),
 
                 Spacer(),
